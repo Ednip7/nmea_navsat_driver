@@ -162,7 +162,7 @@ def convert_deg_to_rads(degs):
 list of tuples where each tuple is a field name, conversion function and index
 into the split sentence"""
 parse_maps = {
-    "GGA": [
+    "GNGGA": [
         ("fix_type", int, 6),
         ("latitude", convert_latitude, 2),
         ("latitude_direction", str, 3),
@@ -183,7 +183,7 @@ parse_maps = {
         ("speed", convert_knots_to_mps, 7),
         ("true_course", convert_deg_to_rads, 8),
     ],
-    "GST": [
+    "GPGST": [
         ("utc_time", convert_time, 1),
         ("ranges_std_dev", safe_float, 2),
         ("semi_major_ellipse_std_dev", safe_float, 3),
@@ -193,8 +193,8 @@ parse_maps = {
         ("lon_std_dev", safe_float, 7),
         ("alt_std_dev", safe_float, 8),
     ],
-    "HDT": [
-        ("heading", safe_float, 1),
+    "UNIHEADINGA": [
+        ("heading", safe_float, 4),
     ],
     "VTG": [
         ("true_course", convert_deg_to_rads, 1),
@@ -206,14 +206,14 @@ parse_maps = {
 def parse_nmea_sentence(nmea_sentence):
     # Check for a valid nmea sentence
 
-    if not re.match(r'(^\$GP|^\$GN|^\$GL|^\$IN).*\*[0-9A-Fa-f]{2}$', nmea_sentence):
+    if not re.match(r'(^\$GP|^\$GN|^\$GL|^\$IN|^\#UN).*\*[0-9A-Fa-f]{2,}$', nmea_sentence):
         logger.debug("Regex didn't match, sentence not valid NMEA? Sentence was: %s"
                      % repr(nmea_sentence))
         return False
     fields = [field.strip(',') for field in nmea_sentence.split(',')]
 
     # Ignore the $ and talker ID portions (e.g. GP)
-    sentence_type = fields[0][3:]
+    sentence_type = fields[0][1:]
 
     if sentence_type not in parse_maps:
         logger.debug("Sentence type %s not in parse map, ignoring."

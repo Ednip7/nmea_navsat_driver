@@ -72,7 +72,7 @@ class Ros2NMEADriver(Node):
         self.lat_std_dev = float("nan")
         self.alt_std_dev = float("nan")
 
-        """Format for this dictionary is the fix type from a GGA message as the key, with
+        """Format for this dictionary is the fix type from a GNGGA message as the key, with
         each entry containing a tuple consisting of a default estimated
         position error, a NavSatStatus value, and a NavSatFix covariance value."""
         self.gps_qualities = {
@@ -150,10 +150,10 @@ class Ros2NMEADriver(Node):
             else:
                 current_time_ref.source = frame_id
 
-        if not self.use_RMC and 'GGA' in parsed_sentence:
+        if not self.use_RMC and 'GNGGA' in parsed_sentence:
             current_fix.position_covariance_type = NavSatFix.COVARIANCE_TYPE_APPROXIMATED
 
-            data = parsed_sentence['GGA']
+            data = parsed_sentence['GNGGA']
             if self.use_GNSS_time:
                 current_fix.header.stamp = rclpy.time.Time(seconds=data['utc_time'][0], nanoseconds=data['utc_time'][1]).to_msg()
 
@@ -184,7 +184,7 @@ class Ros2NMEADriver(Node):
             altitude = data['altitude'] + data['mean_sea_level']
             current_fix.altitude = altitude
 
-            # use default epe std_dev unless we've received a GST sentence with epes
+            # use default epe std_dev unless we've received a GPGST sentence with epes
             if not self.using_receiver_epe or math.isnan(self.lon_std_dev):
                 self.lon_std_dev = default_epe
             if not self.using_receiver_epe or math.isnan(self.lat_std_dev):
@@ -207,7 +207,7 @@ class Ros2NMEADriver(Node):
         elif not self.use_RMC and 'VTG' in parsed_sentence:
             data = parsed_sentence['VTG']
 
-            # Only report VTG data when you've received a valid GGA fix as well.
+            # Only report VTG data when you've received a valid GNGGA fix as well.
             if self.valid_fix:
                 current_vel = TwistStamped()
                 current_vel.header.stamp = current_time
@@ -248,7 +248,7 @@ class Ros2NMEADriver(Node):
                     current_time_ref.time_ref = rclpy.time.Time(seconds=data['utc_time'][0], nanoseconds=data['utc_time'][1]).to_msg()
                     self.time_ref_pub.publish(current_time_ref)
 
-            # Publish velocity from RMC regardless, since GGA doesn't provide it.
+            # Publish velocity from RMC regardless, since GNGGA doesn't provide it.
             if data['fix_valid']:
                 current_vel = TwistStamped()
                 current_vel.header.stamp = current_time
@@ -256,16 +256,16 @@ class Ros2NMEADriver(Node):
                 current_vel.twist.linear.x = data['speed'] * math.sin(data['true_course'])
                 current_vel.twist.linear.y = data['speed'] * math.cos(data['true_course'])
                 self.vel_pub.publish(current_vel)
-        elif 'GST' in parsed_sentence:
-            data = parsed_sentence['GST']
+        elif 'GPGST' in parsed_sentence:
+            data = parsed_sentence['GPGST']
 
             # Use receiver-provided error estimate if available
             self.using_receiver_epe = True
             self.lon_std_dev = data['lon_std_dev']
             self.lat_std_dev = data['lat_std_dev']
             self.alt_std_dev = data['alt_std_dev']
-        elif 'HDT' in parsed_sentence:
-            data = parsed_sentence['HDT']
+        elif 'UNIHEADINGA' in parsed_sentence:
+            data = parsed_sentence['UNIHEADINGA']
             if data['heading']:
                 current_heading = QuaternionStamped()
                 current_heading.header.stamp = current_time
