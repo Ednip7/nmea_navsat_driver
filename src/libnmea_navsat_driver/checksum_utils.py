@@ -30,6 +30,7 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+import binascii
 
 # Check the NMEA sentence checksum. Return True if passes and False if failed
 def check_nmea_checksum(nmea_sentence):
@@ -39,10 +40,17 @@ def check_nmea_checksum(nmea_sentence):
         return False
     transmitted_checksum = split_sentence[1].strip()
 
-    # Remove the $ at the front
-    data_to_checksum = split_sentence[0][1:]
-    checksum = 0
-    for c in data_to_checksum:
-        checksum ^= ord(c)
+    if 'UNIHEADING' in split_sentence[0]:
+        # Remove the # ath the front
+        data_to_checksum = split_sentence[0][1:].encode('ascii')
+        crc = binascii.crc32(data_to_checksum, 0xFFFFFFFF) ^ 0xFFFFFFFF
+        
+        return ("%08X" % crc) == transmitted_checksum.upper()
+    else:
+        # Remove the $ at the front
+        data_to_checksum = split_sentence[0][1:]
+        checksum = 0
+        for c in data_to_checksum:
+            checksum ^= ord(c)
 
-    return ("%02X" % checksum) == transmitted_checksum.upper()
+        return ("%02X" % checksum) == transmitted_checksum.upper()
