@@ -223,7 +223,6 @@ def parse_nmea_sentence(nmea_sentence):
             # Only keep the sentence name from main_fields (first word after '#')
             sentence_type = main_fields.lstrip('#').split(',')[0]
             fields = [sentence_type] + [field.strip().strip('"') for field in extra_fields.split(',')]
-            logger.warn("Parsed UNIHEADINGA fields: %s" % fields)
             if sentence_type not in parse_maps:
                 logger.warn("Sentence type %s not in parse map, ignoring."
                              % repr(sentence_type))
