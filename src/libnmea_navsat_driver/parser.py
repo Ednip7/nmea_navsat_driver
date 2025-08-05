@@ -183,7 +183,7 @@ parse_maps = {
         ("speed", convert_knots_to_mps, 7),
         ("true_course", convert_deg_to_rads, 8),
     ],
-    "GPGST": [
+    "GNGST": [
         ("utc_time", convert_time, 1),
         ("ranges_std_dev", safe_float, 2),
         ("semi_major_ellipse_std_dev", safe_float, 3),
@@ -194,7 +194,11 @@ parse_maps = {
         ("alt_std_dev", safe_float, 8),
     ],
     "UNIHEADINGA": [
+        ("sol_status", str, 1),
         ("heading", safe_float, 4),
+        ("pitch", safe_float, 5),
+        ("heading_std_dev", safe_float, 7),
+        ("pitch_std_dev", safe_float, 8),
     ],
     "VTG": [
         ("true_course", convert_deg_to_rads, 1),
@@ -205,14 +209,34 @@ parse_maps = {
 
 def parse_nmea_sentence(nmea_sentence):
     # Check for a valid nmea sentence
-
     if not re.match(r'(^\$GP|^\$GN|^\$GL|^\$IN|^\#UN).*\*[0-9A-Fa-f]{2,}$', nmea_sentence):
         logger.debug("Regex didn't match, sentence not valid NMEA? Sentence was: %s"
                      % repr(nmea_sentence))
         return False
-    fields = [field.strip(',') for field in nmea_sentence.split(',')]
 
-    # Ignore the $ and talker ID portions (e.g. GP)
+    if nmea_sentence.startswith("#UNIHEADINGA"):
+        try:
+            # Divide the sentence into main fields and extra fields
+            main_fields, extra_fields = nmea_sentence.split(';', 1)
+            # Remove the checksum
+            extra_fields = extra_fields.split('*')[0]
+            # Only keep the sentence name from main_fields (first word after '#')
+            sentence_type = main_fields.lstrip('#').split(',')[0]
+            fields = [sentence_type] + [field.strip().strip('"') for field in extra_fields.split(',')]
+            if sentence_type not in parse_maps:
+                logger.warn("Sentence type %s not in parse map, ignoring."
+                             % repr(sentence_type))
+                return False
+            parse_map = parse_maps[sentence_type]
+            parsed_sentence = {}
+            for entry in parse_map:
+                parsed_sentence[entry[0]] = entry[1](fields[entry[2]])
+            return {sentence_type: parsed_sentence}
+        except Exception as e:
+            logger.error(f"Error parsing UNIHEADINGA sentence: {e}")
+            return False
+
+    fields = [field.strip(',') for field in nmea_sentence.split(',')]
     sentence_type = fields[0][1:]
 
     if sentence_type not in parse_maps:

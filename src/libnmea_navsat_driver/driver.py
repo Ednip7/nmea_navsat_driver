@@ -35,8 +35,8 @@ import math
 import rclpy
 
 from rclpy.node import Node
-from sensor_msgs.msg import NavSatFix, NavSatStatus, TimeReference
-from geometry_msgs.msg import TwistStamped, QuaternionStamped
+from sensor_msgs.msg import NavSatFix, NavSatStatus, TimeReference, Imu
+from geometry_msgs.msg import TwistStamped
 from tf_transformations import quaternion_from_euler
 from libnmea_navsat_driver.checksum_utils import check_nmea_checksum
 from libnmea_navsat_driver import parser
@@ -48,7 +48,7 @@ class Ros2NMEADriver(Node):
 
         self.fix_pub = self.create_publisher(NavSatFix, 'fix', 10)
         self.vel_pub = self.create_publisher(TwistStamped, 'vel', 10)
-        self.heading_pub = self.create_publisher(QuaternionStamped, 'heading', 10)
+        self.uniheading_imu_pub = self.create_publisher(Imu, '/imu/uniheading', 10)
 
         self.time_ref_source = self.declare_parameter('time_ref_source', 'gps').value
         self.use_RMC = self.declare_parameter('useRMC', False).value
@@ -149,7 +149,6 @@ class Ros2NMEADriver(Node):
                 current_time_ref.source = self.time_ref_source
             else:
                 current_time_ref.source = frame_id
-
         if not self.use_RMC and 'GNGGA' in parsed_sentence:
             current_fix.position_covariance_type = NavSatFix.COVARIANCE_TYPE_APPROXIMATED
 
@@ -184,7 +183,7 @@ class Ros2NMEADriver(Node):
             altitude = data['altitude'] + data['mean_sea_level']
             current_fix.altitude = altitude
 
-            # use default epe std_dev unless we've received a GPGST sentence with epes
+            # use default epe std_dev unless we've received a GNGST sentence with epes
             if not self.using_receiver_epe or math.isnan(self.lon_std_dev):
                 self.lon_std_dev = default_epe
             if not self.using_receiver_epe or math.isnan(self.lat_std_dev):
@@ -256,8 +255,8 @@ class Ros2NMEADriver(Node):
                 current_vel.twist.linear.x = data['speed'] * math.sin(data['true_course'])
                 current_vel.twist.linear.y = data['speed'] * math.cos(data['true_course'])
                 self.vel_pub.publish(current_vel)
-        elif 'GPGST' in parsed_sentence:
-            data = parsed_sentence['GPGST']
+        elif 'GNGST' in parsed_sentence:
+            data = parsed_sentence['GNGST']
 
             # Use receiver-provided error estimate if available
             self.using_receiver_epe = True
@@ -266,16 +265,22 @@ class Ros2NMEADriver(Node):
             self.alt_std_dev = data['alt_std_dev']
         elif 'UNIHEADINGA' in parsed_sentence:
             data = parsed_sentence['UNIHEADINGA']
-            if data['heading']:
-                current_heading = QuaternionStamped()
-                current_heading.header.stamp = current_time
-                current_heading.header.frame_id = frame_id
-                q = quaternion_from_euler(0, 0, math.radians(data['heading']))
-                current_heading.quaternion.x = q[0]
-                current_heading.quaternion.y = q[1]
-                current_heading.quaternion.z = q[2]
-                current_heading.quaternion.w = q[3]
-                self.heading_pub.publish(current_heading)
+            if data['heading'] and data['pitch']:
+                current_orientation = Imu()
+                current_orientation.header.stamp = current_time
+                current_orientation.header.frame_id = frame_id
+                # Convert heading and pitch to quaternion
+                # The antennas on the robot are oriented such that the heading corresponds to roll and the pitch corresponds to yaw.
+                q = quaternion_from_euler(0.0, math.radians(data['heading']), math.radians(data['pitch']))
+                current_orientation.orientation.x = q[0]
+                current_orientation.orientation.y = q[1]
+                current_orientation.orientation.z = q[2]
+                current_orientation.orientation.w = q[3]
+                current_orientation.orientation_covariance[0] = 999.0
+                current_orientation.orientation_covariance[4] = pow(math.radians(data['heading_std_dev']), 2)
+                current_orientation.orientation_covariance[8] = pow(math.radians(data['pitch_std_dev']), 2)
+
+                self.uniheading_imu_pub.publish(current_orientation)
         else:
             return False
         return True
