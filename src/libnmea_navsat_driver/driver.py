@@ -52,7 +52,7 @@ class Ros2NMEADriver(Node):
 
         self.time_ref_source = self.declare_parameter('time_ref_source', 'gps').value
         self.use_RMC = self.declare_parameter('useRMC', False).value
-        self.use_GNSS_time = self.declare_parameter('use_GNSS_time', False).value
+        self.use_GNSS_time = self.declare_parameter('use_GNSS_time', True).value
         self.valid_fix = False
 
         if not self.use_GNSS_time:
@@ -149,6 +149,7 @@ class Ros2NMEADriver(Node):
                 current_time_ref.source = self.time_ref_source
             else:
                 current_time_ref.source = frame_id
+                
         if not self.use_RMC and 'GNGGA' in parsed_sentence:
             current_fix.position_covariance_type = NavSatFix.COVARIANCE_TYPE_APPROXIMATED
 

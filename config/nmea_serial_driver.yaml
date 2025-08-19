@@ -5,3 +5,4 @@ nmea_navsat_driver:
     frame_id: "gps"
     time_ref_source: "gps"
     useRMC: False
+    use_GNSS_time: True
